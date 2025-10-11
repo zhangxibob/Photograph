@@ -12,13 +12,45 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-// 动态配置静态文件服务
+
+// 设置正确的MIME类型
+app.use((req, res, next) => {
+    if (req.path.endsWith('.css')) {
+        res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    } else if (req.path.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    } else if (req.path.endsWith('.html')) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+    next();
+});
+
+// 静态文件服务
+app.use('/admin', express.static(path.join(__dirname, 'admin'), {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css; charset=utf-8');
+        } else if (filePath.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        }
+    }
+}));
+
+app.use(express.static(__dirname, {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css; charset=utf-8');
+        } else if (filePath.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        }
+    }
+}));
+
+// 动态配置上传文件服务
 app.use('/uploads', (req, res, next) => {
     const uploadDir = process.env.UPLOAD_BASE_DIR || 'uploads';
     express.static(uploadDir)(req, res, next);
 });
-app.use('/admin', express.static('admin'));
-app.use(express.static('.'));
 
 // 确保上传目录存在
 function ensureUploadDirectories() {
