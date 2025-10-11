@@ -12,38 +12,97 @@ const PORT = 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static('uploads'));
+// 动态配置静态文件服务
+app.use('/uploads', (req, res, next) => {
+    const uploadDir = process.env.UPLOAD_BASE_DIR || 'uploads';
+    express.static(uploadDir)(req, res, next);
+});
 app.use('/admin', express.static('admin'));
 app.use(express.static('.'));
 
 // 确保上传目录存在
 function ensureUploadDirectories() {
-    const uploadDirs = ['uploads', 'uploads/images', 'uploads/videos', 'exports'];
-    
-    uploadDirs.forEach(dir => {
-        try {
-            if (!fs.existsSync(dir)) {
-                console.log(`创建目录: ${dir}`);
-                fs.mkdirSync(dir, { recursive: true });
-                console.log(`✅ 目录创建成功: ${dir}`);
-            } else {
-                console.log(`✅ 目录已存在: ${dir}`);
-            }
-        } catch (error) {
-            console.error(`❌ 创建目录失败: ${dir}`, error.message);
-            
-            // 尝试使用绝对路径创建
-            try {
-                const absolutePath = path.resolve(dir);
-                console.log(`尝试使用绝对路径创建: ${absolutePath}`);
-                fs.mkdirSync(absolutePath, { recursive: true });
-                console.log(`✅ 使用绝对路径创建成功: ${absolutePath}`);
-            } catch (absoluteError) {
-                console.error(`❌ 绝对路径创建也失败: ${absolutePath}`, absoluteError.message);
-                process.exit(1); // 如果无法创建必要目录，退出程序
-            }
-        }
+    // 检测运行环境
+    const isLambda = process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.LAMBDA_TASK_ROOT;
+    const isReadOnlyFS = process.env.VERCEL || process.env.NETLIFY || isLambda;
+
+    console.log('环境检测:', {
+        isLambda: !!isLambda,
+        isReadOnlyFS: !!isReadOnlyFS,
+        cwd: process.cwd(),
+        tmpdir: require('os').tmpdir()
     });
+
+    if (isReadOnlyFS) {
+        console.log('🔍 检测到只读文件系统环境，使用临时目录');
+
+        // 在只读环境中使用临时目录
+        const tmpDir = require('os').tmpdir();
+        const uploadDirs = [
+            path.join(tmpDir, 'uploads'),
+            path.join(tmpDir, 'uploads', 'images'),
+            path.join(tmpDir, 'uploads', 'videos'),
+            path.join(tmpDir, 'exports')
+        ];
+
+        uploadDirs.forEach(dir => {
+            try {
+                if (!fs.existsSync(dir)) {
+                    fs.mkdirSync(dir, { recursive: true });
+                    console.log(`✅ 临时目录创建成功: ${dir}`);
+                }
+            } catch (error) {
+                console.error(`❌ 临时目录创建失败: ${dir}`, error.message);
+            }
+        });
+
+        // 设置环境变量
+        process.env.UPLOAD_BASE_DIR = path.join(tmpDir, 'uploads');
+        process.env.EXPORT_DIR = path.join(tmpDir, 'exports');
+
+    } else {
+        console.log('🔍 检测到可写文件系统环境，使用本地目录');
+
+        const uploadDirs = ['uploads', 'uploads/images', 'uploads/videos', 'exports'];
+
+        uploadDirs.forEach(dir => {
+            try {
+                if (!fs.existsSync(dir)) {
+                    console.log(`创建目录: ${dir}`);
+                    fs.mkdirSync(dir, { recursive: true });
+                    console.log(`✅ 目录创建成功: ${dir}`);
+                } else {
+                    console.log(`✅ 目录已存在: ${dir}`);
+                }
+            } catch (error) {
+                console.error(`❌ 创建目录失败: ${dir}`, error.message);
+                console.warn(`⚠️ 将在运行时动态创建目录: ${dir}`);
+            }
+        });
+
+        // 设置环境变量
+        process.env.UPLOAD_BASE_DIR = path.resolve('uploads');
+        process.env.EXPORT_DIR = path.resolve('exports');
+    }
+
+    console.log('📁 上传目录配置:', {
+        uploadBaseDir: process.env.UPLOAD_BASE_DIR,
+        exportDir: process.env.EXPORT_DIR
+    });
+}
+
+// 动态创建目录的辅助函数
+function ensureDirectoryExists(dirPath) {
+    try {
+        if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath, { recursive: true });
+            console.log(`✅ 动态创建目录: ${dirPath}`);
+        }
+        return true;
+    } catch (error) {
+        console.error(`❌ 动态创建目录失败: ${dirPath}`, error.message);
+        return false;
+    }
 }
 
 // 调用目录创建函数
@@ -52,13 +111,23 @@ ensureUploadDirectories();
 // 配置multer存储
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
+        let targetDir;
+        const baseDir = process.env.UPLOAD_BASE_DIR || 'uploads';
+
         if (file.mimetype.startsWith('image/')) {
-            cb(null, 'uploads/images/');
+            targetDir = path.join(baseDir, 'images');
         } else if (file.mimetype.startsWith('video/')) {
-            cb(null, 'uploads/videos/');
+            targetDir = path.join(baseDir, 'videos');
         } else {
-            cb(new Error('不支持的文件类型'), null);
+            return cb(new Error('不支持的文件类型'), null);
         }
+
+        // 确保目标目录存在
+        if (!ensureDirectoryExists(targetDir)) {
+            return cb(new Error(`无法创建目录: ${targetDir}`), null);
+        }
+
+        cb(null, targetDir);
     },
     filename: function (req, file, cb) {
         // 生成唯一文件名
@@ -122,12 +191,12 @@ app.post('/api/submit', upload.any(), (req, res) => {
     console.log('=== 收到提交请求 ===');
     console.log('请求头:', req.headers);
     console.log('请求体:', req.body);
-    console.log('文件信息:', req.files?.map(f => ({ 
-        fieldname: f.fieldname, 
+    console.log('文件信息:', req.files?.map(f => ({
+        fieldname: f.fieldname,
         originalname: f.originalname,
-        filename: f.filename, 
+        filename: f.filename,
         size: f.size,
-        mimetype: f.mimetype 
+        mimetype: f.mimetype
     })));
 
     try {
@@ -239,7 +308,7 @@ app.post('/api/submit', upload.any(), (req, res) => {
 
     } catch (error) {
         console.error('提交处理失败:', error);
-        
+
         // 清理可能已上传的文件
         if (req.files) {
             req.files.forEach(file => {
@@ -253,7 +322,7 @@ app.post('/api/submit', upload.any(), (req, res) => {
                 }
             });
         }
-        
+
         res.status(500).json({
             success: false,
             message: '服务器错误，请稍后重试',
@@ -280,7 +349,7 @@ app.get('/api/admin/submissions', (req, res) => {
         // 搜索筛选
         if (search) {
             const searchLower = search.toLowerCase();
-            filteredSubmissions = filteredSubmissions.filter(s => 
+            filteredSubmissions = filteredSubmissions.filter(s =>
                 s.name.toLowerCase().includes(searchLower) ||
                 s.phone.includes(search) ||
                 s.description.toLowerCase().includes(searchLower)
@@ -456,7 +525,7 @@ app.get('/api/admin/stats', (req, res) => {
 app.get('/api/admin/export', (req, res) => {
     try {
         console.log('开始导出数据到Excel...');
-        
+
         // 准备导出数据
         const exportData = submissions.map((submission, index) => {
             return {
@@ -477,10 +546,10 @@ app.get('/api/admin/export', (req, res) => {
 
         // 创建工作簿
         const wb = XLSX.utils.book_new();
-        
+
         // 创建工作表
         const ws = XLSX.utils.json_to_sheet(exportData);
-        
+
         // 设置列宽
         const colWidths = [
             { wch: 6 },   // 序号
@@ -497,29 +566,29 @@ app.get('/api/admin/export', (req, res) => {
             { wch: 20 }   // 更新时间
         ];
         ws['!cols'] = colWidths;
-        
+
         // 添加工作表到工作簿
         XLSX.utils.book_append_sheet(wb, ws, '随手拍数据');
-        
+
         // 生成Excel文件
         const fileName = `随手拍数据_${new Date().toISOString().slice(0, 10)}.xlsx`;
-        const filePath = path.join(__dirname, 'exports', fileName);
-        
+        const exportDir = process.env.EXPORT_DIR || path.join(__dirname, 'exports');
+        const filePath = path.join(exportDir, fileName);
+
         // 确保导出目录存在
-        const exportDir = path.join(__dirname, 'exports');
-        if (!fs.existsSync(exportDir)) {
-            fs.mkdirSync(exportDir, { recursive: true });
+        if (!ensureDirectoryExists(exportDir)) {
+            throw new Error(`无法创建导出目录: ${exportDir}`);
         }
-        
+
         // 写入文件
         XLSX.writeFile(wb, filePath);
-        
+
         console.log(`Excel文件已生成: ${filePath}`);
-        
+
         // 设置响应头
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
-        
+
         // 发送文件
         res.sendFile(filePath, (err) => {
             if (err) {
@@ -558,10 +627,10 @@ app.get('/api/admin/export', (req, res) => {
 app.get('/api/admin/export-detailed', (req, res) => {
     try {
         console.log('开始导出详细数据到Excel...');
-        
+
         // 创建工作簿
         const wb = XLSX.utils.book_new();
-        
+
         // 1. 基本信息工作表
         const basicData = submissions.map((submission, index) => ({
             '序号': index + 1,
@@ -575,14 +644,14 @@ app.get('/api/admin/export-detailed', (req, res) => {
             '图片数量': submission.images.length,
             '视频数量': submission.videos.length
         }));
-        
+
         const basicWs = XLSX.utils.json_to_sheet(basicData);
         basicWs['!cols'] = [
             { wch: 6 }, { wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 40 },
             { wch: 20 }, { wch: 10 }, { wch: 20 }, { wch: 10 }, { wch: 10 }
         ];
         XLSX.utils.book_append_sheet(wb, basicWs, '基本信息');
-        
+
         // 2. 图片文件工作表
         const imageData = [];
         submissions.forEach(submission => {
@@ -600,7 +669,7 @@ app.get('/api/admin/export-detailed', (req, res) => {
                 });
             });
         });
-        
+
         if (imageData.length > 0) {
             const imageWs = XLSX.utils.json_to_sheet(imageData);
             imageWs['!cols'] = [
@@ -609,7 +678,7 @@ app.get('/api/admin/export-detailed', (req, res) => {
             ];
             XLSX.utils.book_append_sheet(wb, imageWs, '图片文件');
         }
-        
+
         // 3. 视频文件工作表
         const videoData = [];
         submissions.forEach(submission => {
@@ -627,7 +696,7 @@ app.get('/api/admin/export-detailed', (req, res) => {
                 });
             });
         });
-        
+
         if (videoData.length > 0) {
             const videoWs = XLSX.utils.json_to_sheet(videoData);
             videoWs['!cols'] = [
@@ -636,7 +705,7 @@ app.get('/api/admin/export-detailed', (req, res) => {
             ];
             XLSX.utils.book_append_sheet(wb, videoWs, '视频文件');
         }
-        
+
         // 4. 统计信息工作表
         const stats = {
             total: submissions.length,
@@ -646,7 +715,7 @@ app.get('/api/admin/export-detailed', (req, res) => {
             totalImages: submissions.reduce((sum, s) => sum + s.images.length, 0),
             totalVideos: submissions.reduce((sum, s) => sum + s.videos.length, 0)
         };
-        
+
         const statsData = [
             { '统计项目': '总提交数', '数值': stats.total },
             { '统计项目': '待审核', '数值': stats.pending },
@@ -656,29 +725,29 @@ app.get('/api/admin/export-detailed', (req, res) => {
             { '统计项目': '视频总数', '数值': stats.totalVideos },
             { '统计项目': '导出时间', '数值': new Date().toLocaleString('zh-CN') }
         ];
-        
+
         const statsWs = XLSX.utils.json_to_sheet(statsData);
         statsWs['!cols'] = [{ wch: 15 }, { wch: 15 }];
         XLSX.utils.book_append_sheet(wb, statsWs, '统计信息');
-        
+
         // 生成文件
         const fileName = `随手拍详细数据_${new Date().toISOString().slice(0, 10)}.xlsx`;
-        const filePath = path.join(__dirname, 'exports', fileName);
-        
+        const exportDir = process.env.EXPORT_DIR || path.join(__dirname, 'exports');
+        const filePath = path.join(exportDir, fileName);
+
         // 确保导出目录存在
-        const exportDir = path.join(__dirname, 'exports');
-        if (!fs.existsSync(exportDir)) {
-            fs.mkdirSync(exportDir, { recursive: true });
+        if (!ensureDirectoryExists(exportDir)) {
+            throw new Error(`无法创建导出目录: ${exportDir}`);
         }
-        
+
         XLSX.writeFile(wb, filePath);
-        
+
         console.log(`详细Excel文件已生成: ${filePath}`);
-        
+
         // 设置响应头并发送文件
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
-        
+
         res.sendFile(filePath, (err) => {
             if (err) {
                 console.error('发送详细Excel文件失败:', err);
@@ -730,7 +799,7 @@ app.get('/admin', (req, res) => {
 // 错误处理中间件
 app.use((error, req, res, next) => {
     console.error('服务器错误:', error);
-    
+
     if (error instanceof multer.MulterError) {
         if (error.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({
