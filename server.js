@@ -17,12 +17,37 @@ app.use('/admin', express.static('admin'));
 app.use(express.static('.'));
 
 // 确保上传目录存在
-const uploadDirs = ['uploads/images', 'uploads/videos'];
-uploadDirs.forEach(dir => {
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-    }
-});
+function ensureUploadDirectories() {
+    const uploadDirs = ['uploads', 'uploads/images', 'uploads/videos', 'exports'];
+    
+    uploadDirs.forEach(dir => {
+        try {
+            if (!fs.existsSync(dir)) {
+                console.log(`创建目录: ${dir}`);
+                fs.mkdirSync(dir, { recursive: true });
+                console.log(`✅ 目录创建成功: ${dir}`);
+            } else {
+                console.log(`✅ 目录已存在: ${dir}`);
+            }
+        } catch (error) {
+            console.error(`❌ 创建目录失败: ${dir}`, error.message);
+            
+            // 尝试使用绝对路径创建
+            try {
+                const absolutePath = path.resolve(dir);
+                console.log(`尝试使用绝对路径创建: ${absolutePath}`);
+                fs.mkdirSync(absolutePath, { recursive: true });
+                console.log(`✅ 使用绝对路径创建成功: ${absolutePath}`);
+            } catch (absoluteError) {
+                console.error(`❌ 绝对路径创建也失败: ${absolutePath}`, absoluteError.message);
+                process.exit(1); // 如果无法创建必要目录，退出程序
+            }
+        }
+    });
+}
+
+// 调用目录创建函数
+ensureUploadDirectories();
 
 // 配置multer存储
 const storage = multer.diskStorage({
