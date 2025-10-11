@@ -745,52 +745,6 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
-// 工具函数
-
-// 防抖函数
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// 格式化日期
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-// 获取状态文本
-function getStatusText(status) {
-    const statusMap = {
-        pending: '待审核',
-        approved: '已通过',
-        rejected: '已拒绝'
-    };
-    return statusMap[status] || status;
-}
-
-// 格式化文件大小
-function formatFileSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
-
 // 切换导出下拉菜单
 function toggleExportDropdown() {
     const dropdown = document.getElementById('export-dropdown');
@@ -906,7 +860,7 @@ function exportDetailedData() {
 async function exportCurrentView() {
     try {
         if (confirm('确定要导出当前筛选的数据吗？')) {
-            showLoading();
+            const progress = showExportProgress('导出当前视图', '正在获取数据...');
             
             // 获取当前筛选的数据
             const params = new URLSearchParams({
@@ -920,18 +874,19 @@ async function exportCurrentView() {
             const data = await response.json();
             
             if (data.success && data.data.submissions.length > 0) {
+                progress.update('正在生成文件...');
                 // 使用前端生成Excel
                 exportToExcel(data.data.submissions, '当前视图数据');
-                showNotification(`成功导出 ${data.data.submissions.length} 条记录！`, 'success');
+                progress.update(`成功导出 ${data.data.submissions.length} 条记录！`, 'success');
+                progress.close();
             } else {
-                showNotification('当前视图没有数据可导出', 'warning');
+                progress.update('当前视图没有数据可导出', 'error');
+                progress.close();
             }
         }
     } catch (error) {
         console.error('导出当前视图失败:', error);
         showNotification('导出失败，请稍后重试', 'error');
-    } finally {
-        hideLoading();
     }
 }
 
@@ -1028,470 +983,6 @@ function showBatchExportModal() {
                         <span style="align-self: center;">至</span>
                         <input type="date" id="export-end-date" style="flex: 1; padding: 8px;">
                     </div>
-                    
-                    <h4>导出格式：</h4>
-                    <div style="margin: 15px 0;">
-                        <label style="display: block; margin-bottom: 10px;">
-                            <input type="radio" name="export-format" value="excel" checked> Excel文件 (.xlsx)
-                        </label>
-                        <label style="display: block; margin-bottom: 10px;">
-                            <input type="radio" name="export-format" value="csv"> CSV文件 (.csv)
-                        </label>
-                        <label style="display: block; margin-bottom: 10px;">
-                            <input type="radio" name="export-format" value="json"> JSON文件 (.json)
-                        </label>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-primary" onclick="executeBatchExport()">
-                    <i class="fas fa-download"></i> 开始导出
-                </button>
-                <button class="btn btn-secondary" onclick="this.closest('.modal').remove()">取消</button>
-            </div>
-        </div>
-    `;
-    
-    modal.addEventListener('click', function(e) {
-        if (e.target === this) {
-            this.remove();
-        }
-    });
-    
-    document.body.appendChild(modal);
-}
-
-// 执行批量导出
-async function executeBatchExport() {
-    try {
-        const modal = document.querySelector('.modal');
-        const options = {
-            basic: document.getElementById('export-basic').checked,
-            images: document.getElementById('export-images').checked,
-            videos: document.getElementById('export-videos').checked,
-            stats: document.getElementById('export-stats').checked,
-            status: document.getElementById('export-status').value,
-            startDate: document.getElementById('export-start-date').value,
-            endDate: document.getElementById('export-end-date').value,
-            format: document.querySelector('input[name="export-format"]:checked').value
-        };
-        
-        modal.remove();
-        
-        const progress = showExportProgress('批量导出', '正在获取数据...');
-        
-        // 构建查询参数
-        const params = new URLSearchParams({
-            page: 1,
-            limit: 10000,
-            status: options.status
-        });
-        
-        if (options.startDate) params.append('startDate', options.startDate);
-        if (options.endDate) params.append('endDate', options.endDate);
-        
-        // 获取数据
-        const response = await fetch(`/api/admin/submissions?${params}`);
-        const data = await response.json();
-        
-        if (data.success) {
-            progress.update('正在处理导出数据...');
-            
-            // 根据选项和格式导出
-            if (options.format === 'excel') {
-                await exportToExcelAdvanced(data.data.submissions, options, progress);
-            } else if (options.format === 'csv') {
-                await exportToCSVAdvanced(data.data.submissions, options, progress);
-            } else if (options.format === 'json') {
-                await exportToJSONAdvanced(data.data.submissions, options, progress);
-            }
-            
-            progress.update('导出完成！', 'success');
-            progress.close();
-        } else {
-            progress.update('获取数据失败', 'error');
-            progress.close();
-        }
-        
-    } catch (error) {
-        console.error('批量导出失败:', error);
-        showNotification('批量导出失败', 'error');
-    }
-}
-
-// 高级Excel导出
-async function exportToExcelAdvanced(submissions, options, progress) {
-    // 如果选择了基本信息，使用服务器端导出
-    if (options.basic) {
-        progress.update('正在生成Excel文件...');
-        
-        const link = document.createElement('a');
-        link.href = '/api/admin/export-detailed';
-        link.download = `随手拍批量导出_${new Date().toISOString().slice(0, 10)}.xlsx`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    } else {
-        // 前端生成简化版本
-        exportToExcel(submissions, '批量导出数据');
-    }
-}
-
-// 高级CSV导出
-async function exportToCSVAdvanced(submissions, options, progress) {
-    let exportData = [];
-    
-    if (options.basic) {
-        progress.update('正在处理基本信息...');
-        exportData = submissions.map((submission, index) => ({
-            '序号': index + 1,
-            '提交ID': submission.id,
-            '姓名': submission.name,
-            '手机号': submission.phone,
-            '文字说明': submission.description,
-            '图片数量': submission.images.length,
-            '视频数量': submission.videos.length,
-            '提交时间': formatDate(submission.submitTime),
-            '审核状态': getStatusText(submission.status),
-            '更新时间': submission.updateTime ? formatDate(submission.updateTime) : ''
-        }));
-    }
-    
-    if (options.images) {
-        progress.update('正在处理图片信息...');
-        const imageData = [];
-        submissions.forEach(submission => {
-            submission.images.forEach((image, index) => {
-                imageData.push({
-                    '提交ID': submission.id,
-                    '用户姓名': submission.name,
-                    '图片序号': index + 1,
-                    '原始文件名': image.originalName,
-                    '文件大小': formatFileSize(image.size),
-                    '上传时间': formatDate(image.uploadTime)
-                });
-            });
-        });
-        
-        if (imageData.length > 0) {
-            downloadCSV(imageData, '图片文件信息');
-        }
-    }
-    
-    if (options.videos) {
-        progress.update('正在处理视频信息...');
-        const videoData = [];
-        submissions.forEach(submission => {
-            submission.videos.forEach((video, index) => {
-                videoData.push({
-                    '提交ID': submission.id,
-                    '用户姓名': submission.name,
-                    '视频序号': index + 1,
-                    '原始文件名': video.originalName,
-                    '文件大小': formatFileSize(video.size),
-                    '上传时间': formatDate(video.uploadTime)
-                });
-            });
-        });
-        
-        if (videoData.length > 0) {
-            downloadCSV(videoData, '视频文件信息');
-        }
-    }
-    
-    if (exportData.length > 0) {
-        downloadCSV(exportData, '基本信息');
-    }
-}
-
-// 高级JSON导出
-async function exportToJSONAdvanced(submissions, options, progress) {
-    progress.update('正在生成JSON文件...');
-    
-    let exportData = {
-        exportTime: new Date().toISOString(),
-        exportOptions: options,
-        totalCount: submissions.length
-    };
-    
-    if (options.basic) {
-        exportData.submissions = submissions.map(submission => ({
-            id: submission.id,
-            name: submission.name,
-            phone: submission.phone,
-            description: submission.description,
-            submitTime: submission.submitTime,
-            status: submission.status,
-            updateTime: submission.updateTime,
-            imageCount: submission.images.length,
-            videoCount: submission.videos.length
-        }));
-    }
-    
-    if (options.images) {
-        exportData.images = [];
-        submissions.forEach(submission => {
-            submission.images.forEach(image => {
-                exportData.images.push({
-                    submissionId: submission.id,
-                    submissionName: submission.name,
-                    originalName: image.originalName,
-                    filename: image.filename,
-                    size: image.size,
-                    mimetype: image.mimetype,
-                    uploadTime: image.uploadTime
-                });
-            });
-        });
-    }
-    
-    if (options.videos) {
-        exportData.videos = [];
-        submissions.forEach(submission => {
-            submission.videos.forEach(video => {
-                exportData.videos.push({
-                    submissionId: submission.id,
-                    submissionName: submission.name,
-                    originalName: video.originalName,
-                    filename: video.filename,
-                    size: video.size,
-                    mimetype: video.mimetype,
-                    uploadTime: video.uploadTime
-                });
-            });
-        });
-    }
-    
-    if (options.stats) {
-        exportData.statistics = {
-            totalSubmissions: submissions.length,
-            statusBreakdown: {
-                pending: submissions.filter(s => s.status === 'pending').length,
-                approved: submissions.filter(s => s.status === 'approved').length,
-                rejected: submissions.filter(s => s.status === 'rejected').length
-            },
-            mediaStats: {
-                totalImages: submissions.reduce((sum, s) => sum + s.images.length, 0),
-                totalVideos: submissions.reduce((sum, s) => sum + s.videos.length, 0)
-            }
-        };
-    }
-    
-    // 下载JSON文件
-    const jsonString = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `随手拍数据_${new Date().toISOString().slice(0, 10)}.json`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}
-
-// 下载CSV文件的辅助函数
-function downloadCSV(data, filename) {
-    if (data.length === 0) return;
-    
-    const headers = Object.keys(data[0]);
-    const csvContent = [
-        headers.join(','),
-        ...data.map(row => 
-            headers.map(header => {
-                const value = row[header] || '';
-                return typeof value === 'string' && (value.includes(',') || value.includes('\n')) 
-                    ? `"${value.replace(/"/g, '""')}"` 
-                    : value;
-            }).join(',')
-        )
-    ].join('\n');
-    
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${filename}_${new Date().toISOString().slice(0, 10)}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}
-
-// 清空数据功能
-function clearData() {
-    if (confirm('⚠️ 警告：此操作将删除所有提交数据和文件，且不可恢复！\n\n确定要继续吗？')) {
-        if (confirm('请再次确认：您真的要删除所有数据吗？')) {
-            // 这里可以添加清空数据的API调用
-            showNotification('此功能需要服务器端支持', 'warning');
-        }
-    }
-}
-
-// 导出统计报告
-async function exportStatisticsReport() {
-    try {
-        const progress = showExportProgress('导出统计报告', '正在生成统计数据...');
-        
-        // 获取统计数据
-        const statsResponse = await fetch('/api/admin/stats');
-        const statsData = await statsResponse.json();
-        
-        // 获取所有提交数据用于详细分析
-        const submissionsResponse = await fetch('/api/admin/submissions?limit=10000');
-        const submissionsData = await submissionsResponse.json();
-        
-        if (statsData.success && submissionsData.success) {
-            progress.update('正在分析数据...');
-            
-            const submissions = submissionsData.data.submissions;
-            const stats = statsData.data;
-            
-            // 生成统计报告
-            const report = {
-                reportTime: new Date().toISOString(),
-                summary: stats,
-                dailyStats: generateDailyStats(submissions),
-                statusDistribution: generateStatusDistribution(submissions),
-                mediaAnalysis: generateMediaAnalysis(submissions),
-                userActivity: generateUserActivity(submissions)
-            };
-            
-            progress.update('正在生成报告文件...');
-            
-            // 导出为JSON格式的统计报告
-            const jsonString = JSON.stringify(report, null, 2);
-            const blob = new Blob([jsonString], { type: 'application/json' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', `随手拍统计报告_${new Date().toISOString().slice(0, 10)}.json`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            
-            progress.update('统计报告导出完成！', 'success');
-            progress.close();
-        }
-        
-    } catch (error) {
-        console.error('导出统计报告失败:', error);
-        showNotification('导出统计报告失败', 'error');
-    }
-}
-
-// 生成每日统计
-function generateDailyStats(submissions) {
-    const dailyStats = {};
-    
-    submissions.forEach(submission => {
-        const date = new Date(submission.submitTime).toISOString().slice(0, 10);
-        if (!dailyStats[date]) {
-            dailyStats[date] = {
-                count: 0,
-                images: 0,
-                videos: 0,
-                pending: 0,
-                approved: 0,
-                rejected: 0
-            };
-        }
-        
-        dailyStats[date].count++;
-        dailyStats[date].images += submission.images.length;
-        dailyStats[date].videos += submission.videos.length;
-        dailyStats[date][submission.status]++;
-    });
-    
-    return dailyStats;
-}
-
-// 生成状态分布
-function generateStatusDistribution(submissions) {
-    const distribution = {
-        pending: 0,
-        approved: 0,
-        rejected: 0
-    };
-    
-    submissions.forEach(submission => {
-        distribution[submission.status]++;
-    });
-    
-    return distribution;
-}
-
-// 生成媒体分析
-function generateMediaAnalysis(submissions) {
-    let totalImages = 0;
-    let totalVideos = 0;
-    let totalImageSize = 0;
-    let totalVideoSize = 0;
-    
-    submissions.forEach(submission => {
-        totalImages += submission.images.length;
-        totalVideos += submission.videos.length;
-        
-        submission.images.forEach(img => {
-            totalImageSize += img.size;
-        });
-        
-        submission.videos.forEach(video => {
-            totalVideoSize += video.size;
-        });
-    });
-    
-    return {
-        totalImages,
-        totalVideos,
-        totalImageSize,
-        totalVideoSize,
-        averageImagesPerSubmission: totalImages / submissions.length,
-        averageVideosPerSubmission: totalVideos / submissions.length
-    };
-}
-
-// 生成用户活动分析
-function generateUserActivity(submissions) {
-    const hourlyActivity = new Array(24).fill(0);
-    const weeklyActivity = new Array(7).fill(0);
-    
-    submissions.forEach(submission => {
-        const date = new Date(submission.submitTime);
-        const hour = date.getHours();
-        const day = date.getDay();
-        
-        hourlyActivity[hour]++;
-        weeklyActivity[day]++;
-    });
-    
-    return {
-        hourlyActivity,
-        weeklyActivity,
-        peakHour: hourlyActivity.indexOf(Math.max(...hourlyActivity)),
-        peakDay: weeklyActivity.indexOf(Math.max(...weeklyActivity))
-    };
-}
-                    </div>
-                    
-                    <h4>导出格式：</h4>
-                    <div style="margin: 15px 0;">
-                        <label style="display: block; margin-bottom: 10px;">
-                            <input type="radio" name="export-format" value="excel" checked> Excel文件 (.xlsx)
-                        </label>
-                        <label style="display: block; margin-bottom: 10px;">
-                            <input type="radio" name="export-format" value="csv"> CSV文件 (.csv)
-                        </label>
-                        <label style="display: block; margin-bottom: 10px;">
-                            <input type="radio" name="export-format" value="json"> JSON文件 (.json)
-                        </label>
-                    </div>
-                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -1527,7 +1018,8 @@ async function executeBatchExport() {
         };
         
         modal.remove();
-        showLoading();
+        
+        const progress = showExportProgress('批量导出', '正在获取数据...');
         
         // 构建查询参数
         const params = new URLSearchParams({
@@ -1544,32 +1036,80 @@ async function executeBatchExport() {
         const data = await response.json();
         
         if (data.success) {
-            // 根据选项生成不同的导出内容
+            progress.update('正在处理导出数据...');
+            
+            // 根据选项导出
             if (options.basic) {
-                exportToExcel(data.data.submissions, '基本信息');
+                exportToExcel(data.data.submissions, '批量导出数据');
             }
             
-            showNotification('批量导出完成！', 'success');
+            progress.update('导出完成！', 'success');
+            progress.close();
         } else {
-            showNotification('获取数据失败', 'error');
+            progress.update('获取数据失败', 'error');
+            progress.close();
         }
         
     } catch (error) {
         console.error('批量导出失败:', error);
         showNotification('批量导出失败', 'error');
-    } finally {
-        hideLoading();
     }
 }
 
-// 清空数据
+// 清空数据功能
 function clearData() {
-    if (confirm('警告：此操作将删除所有提交数据和文件，且不可恢复！\n\n确定要继续吗？')) {
-        if (confirm('请再次确认：真的要清空所有数据吗？')) {
-            // 这里可以调用清空数据的API
-            showNotification('此功能需要在服务器端实现', 'warning');
+    if (confirm('⚠️ 警告：此操作将删除所有提交数据和文件，且不可恢复！\n\n确定要继续吗？')) {
+        if (confirm('请再次确认：您真的要删除所有数据吗？')) {
+            // 这里可以添加清空数据的API调用
+            showNotification('此功能需要服务器端支持', 'warning');
         }
     }
+}
+
+// 工具函数
+
+// 防抖函数
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// 格式化日期
+function formatDate(dateString) {
+    const date = new Date(dateString);
+    return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+// 获取状态文本
+function getStatusText(status) {
+    const statusMap = {
+        pending: '待审核',
+        approved: '已通过',
+        rejected: '已拒绝'
+    };
+    return statusMap[status] || status;
+}
+
+// 格式化文件大小
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 // 添加CSS动画
