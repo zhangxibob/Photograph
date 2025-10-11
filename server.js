@@ -830,6 +830,11 @@ function getStatusText(status) {
     return statusMap[status] || status;
 }
 
+// 根路由 - 主页
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 // 管理员登录页面
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin', 'index.html'));
