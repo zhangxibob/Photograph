@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "build": "echo 'Build completed'",
+    "vercel-build": "echo 'Vercel build completed'",
     "quick-start": "node start.js",
     "install-deps": "npm install",
     "setup": "npm install && node setup.js",

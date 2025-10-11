@@ -157,17 +157,45 @@ const upload = multer({
 let submissions = [];
 let submissionId = 1;
 
+// 检测是否在Vercel环境
+const isVercelEnv = process.env.VERCEL || process.env.VERCEL_ENV;
+
+// 数据文件路径
+const dataFile = isVercelEnv ? '/tmp/submissions.json' : 'submissions.json';
+
 // 加载已存在的数据
-const dataFile = 'submissions.json';
-if (fs.existsSync(dataFile)) {
+function loadData() {
     try {
-        const data = fs.readFileSync(dataFile, 'utf8');
-        const parsed = JSON.parse(data);
-        submissions = parsed.submissions || [];
-        submissionId = parsed.nextId || 1;
-        console.log(`加载了 ${submissions.length} 条历史数据`);
+        if (fs.existsSync(dataFile)) {
+            const data = fs.readFileSync(dataFile, 'utf8');
+            const parsed = JSON.parse(data);
+            submissions = parsed.submissions || [];
+            submissionId = parsed.nextId || 1;
+            console.log(`加载了 ${submissions.length} 条历史数据`);
+        } else {
+            console.log('数据文件不存在，使用默认数据');
+            // 在Vercel环境中，添加一些示例数据
+            if (isVercelEnv) {
+                submissions = [
+                    {
+                        id: 1,
+                        phone: '13800138000',
+                        name: '张三',
+                        description: '这是一个示例提交，展示随手拍功能。',
+                        images: [],
+                        videos: [],
+                        submitTime: new Date().toISOString(),
+                        status: 'pending'
+                    }
+                ];
+                submissionId = 2;
+                console.log('已添加示例数据');
+            }
+        }
     } catch (error) {
         console.error('加载历史数据失败:', error);
+        submissions = [];
+        submissionId = 1;
     }
 }
 
@@ -178,11 +206,22 @@ function saveData() {
             submissions: submissions,
             nextId: submissionId
         };
+
+        // 确保目录存在
+        const dir = path.dirname(dataFile);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+
         fs.writeFileSync(dataFile, JSON.stringify(data, null, 2));
+        console.log(`数据已保存到: ${dataFile}`);
     } catch (error) {
         console.error('保存数据失败:', error);
     }
 }
+
+// 初始化数据
+loadData();
 
 // API路由
 
@@ -821,25 +860,35 @@ app.use((error, req, res, next) => {
     });
 });
 
-// 启动服务器
-app.listen(PORT, () => {
-    console.log(`🚀 随手拍后台服务器启动成功！`);
-    console.log(`📱 前端应用: http://localhost:${PORT}`);
-    console.log(`🔧 管理后台: http://localhost:${PORT}/admin`);
-    console.log(`📊 API文档: http://localhost:${PORT}/api`);
-    console.log(`📁 上传目录: ${path.resolve('uploads')}`);
-    console.log(`💾 数据文件: ${path.resolve(dataFile)}`);
-});
+// 检测是否在Vercel环境中
+const isVercel = process.env.VERCEL || process.env.VERCEL_ENV;
 
-// 优雅关闭
-process.on('SIGINT', () => {
-    console.log('\n正在关闭服务器...');
-    saveData();
-    process.exit(0);
-});
+if (!isVercel) {
+    // 本地开发环境启动服务器
+    app.listen(PORT, () => {
+        console.log(`🚀 随手拍后台服务器启动成功！`);
+        console.log(`📱 前端应用: http://localhost:${PORT}`);
+        console.log(`🔧 管理后台: http://localhost:${PORT}/admin`);
+        console.log(`📊 API文档: http://localhost:${PORT}/api`);
+        console.log(`📁 上传目录: ${process.env.UPLOAD_BASE_DIR || path.resolve('uploads')}`);
+        console.log(`💾 数据文件: ${path.resolve(dataFile)}`);
+    });
 
-process.on('SIGTERM', () => {
-    console.log('\n正在关闭服务器...');
-    saveData();
-    process.exit(0);
-});
+    // 优雅关闭
+    process.on('SIGINT', () => {
+        console.log('\n正在关闭服务器...');
+        saveData();
+        process.exit(0);
+    });
+
+    process.on('SIGTERM', () => {
+        console.log('\n正在关闭服务器...');
+        saveData();
+        process.exit(0);
+    });
+} else {
+    console.log('🚀 在Vercel无服务器环境中运行');
+}
+
+// 导出app供Vercel使用
+module.exports = app;
