@@ -13,38 +13,30 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 设置正确的MIME类型
-app.use((req, res, next) => {
-    if (req.path.endsWith('.css')) {
-        res.setHeader('Content-Type', 'text/css; charset=utf-8');
-    } else if (req.path.endsWith('.js')) {
-        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-    } else if (req.path.endsWith('.html')) {
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    }
-    next();
+// 直接处理静态文件路由 - 在所有其他路由之前
+app.get('/admin/admin.css', (req, res) => {
+    console.log('请求admin.css');
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    res.sendFile(path.join(__dirname, 'admin', 'admin.css'));
 });
 
-// 静态文件服务
-app.use('/admin', express.static(path.join(__dirname, 'admin'), {
-    setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.css')) {
-            res.setHeader('Content-Type', 'text/css; charset=utf-8');
-        } else if (filePath.endsWith('.js')) {
-            res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-        }
-    }
-}));
+app.get('/admin/admin.js', (req, res) => {
+    console.log('请求admin.js');
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.sendFile(path.join(__dirname, 'admin', 'admin.js'));
+});
 
-app.use(express.static(__dirname, {
-    setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.css')) {
-            res.setHeader('Content-Type', 'text/css; charset=utf-8');
-        } else if (filePath.endsWith('.js')) {
-            res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-        }
-    }
-}));
+app.get('/styles.css', (req, res) => {
+    console.log('请求styles.css');
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    res.sendFile(path.join(__dirname, 'styles.css'));
+});
+
+app.get('/script.js', (req, res) => {
+    console.log('请求script.js');
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.sendFile(path.join(__dirname, 'script.js'));
+});
 
 // 动态配置上传文件服务
 app.use('/uploads', (req, res, next) => {
