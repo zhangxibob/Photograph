@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>随手拍管理后台</title>
+    <link rel="stylesheet" href="admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2><i class="fas fa-camera"></i> 随手拍管理</h2>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#dashboard" class="nav-item active" data-page="dashboard">
+                <i class="fas fa-tachometer-alt"></i> 数据概览
+            </a>
+            <a href="#submissions" class="nav-item" data-page="submissions">
+                <i class="fas fa-list"></i> 提交管理
+            </a>
+            <a href="#media" class="nav-item" data-page="media">
+                <i class="fas fa-images"></i> 媒体文件
+            </a>
+            <a href="#settings" class="nav-item" data-page="settings">
+                <i class="fas fa-cog"></i> 系统设置
+            </a>
+        </nav>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+        <!-- 顶部导航 -->
+        <header class="top-header">
+            <div class="header-left">
+                <button class="sidebar-toggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h1 id="page-title">数据概览</h1>
+            </div>
+            <div class="header-right">
+                <span class="current-time" id="current-time"></span>
+                <div class="user-info">
+                    <i class="fas fa-user-circle"></i>
+                    <span>管理员</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 页面内容 -->
+        <main class="page-content">
+            <!-- 数据概览页面 -->
+            <div id="dashboard-page" class="page active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-file-alt"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="total-submissions">0</h3>
+                            <p>总提交数</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon pending">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="pending-submissions">0</h3>
+                            <p>待审核</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon approved">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="approved-submissions">0</h3>
+                            <p>已通过</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon rejected">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="rejected-submissions">0</h3>
+                            <p>已拒绝</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-images"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="total-images">0</h3>
+                            <p>图片总数</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-video"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="total-videos">0</h3>
+                            <p>视频总数</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="recent-submissions">
+                    <h3>最近提交</h3>
+                    <div class="submissions-list" id="recent-submissions-list">
+                        <!-- 动态加载 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 提交管理页面 -->
+            <div id="submissions-page" class="page">
+                <div class="page-header">
+                    <div class="search-filters">
+                        <input type="text" id="search-input" placeholder="搜索姓名、手机号或描述...">
+                        <select id="status-filter">
+                            <option value="all">全部状态</option>
+                            <option value="pending">待审核</option>
+                            <option value="approved">已通过</option>
+                            <option value="rejected">已拒绝</option>
+                        </select>
+                        <button id="refresh-btn" class="btn btn-primary">
+                            <i class="fas fa-sync-alt"></i> 刷新
+                        </button>
+                        <div class="export-dropdown">
+                            <button class="btn btn-success dropdown-toggle" onclick="toggleExportDropdown()">
+                                <i class="fas fa-download"></i> 导出数据
+                            </button>
+                            <div class="dropdown-menu" id="export-dropdown">
+                                <a href="#" onclick="exportCurrentView()">
+                                    <i class="fas fa-table"></i> 导出当前视图
+                                </a>
+                                <a href="#" onclick="exportBasicData()">
+                                    <i class="fas fa-file-excel"></i> 导出基础数据
+                                </a>
+                                <a href="#" onclick="exportDetailedData()">
+                                    <i class="fas fa-file-alt"></i> 导出详细数据
+                                </a>
+                                <a href="#" onclick="showBatchExportModal()">
+                                    <i class="fas fa-cogs"></i> 自定义导出
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="submissions-table-container">
+                    <table class="submissions-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>姓名</th>
+                                <th>手机号</th>
+                                <th>提交时间</th>
+                                <th>状态</th>
+                                <th>媒体文件</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="submissions-table-body">
+                            <!-- 动态加载 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="pagination" id="pagination">
+                    <!-- 动态加载 -->
+                </div>
+            </div>
+
+            <!-- 媒体文件页面 -->
+            <div id="media-page" class="page">
+                <div class="media-gallery" id="media-gallery">
+                    <!-- 动态加载 -->
+                </div>
+            </div>
+
+            <!-- 系统设置页面 -->
+            <div id="settings-page" class="page">
+                <div class="settings-section">
+                    <h3>系统信息</h3>
+                    <div class="setting-item">
+                        <label>服务器状态</label>
+                        <span class="status-indicator online">运行中</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>数据存储位置</label>
+                        <span>./submissions.json</span>
+                    </div>
+                    <div class="setting-item">
+                        <label>上传目录</label>
+                        <span>./uploads/</span>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>数据管理</h3>
+                    <div class="export-buttons">
+                        <button class="btn btn-primary" onclick="exportBasicData()">
+                            <i class="fas fa-file-excel"></i> 导出基础数据
+                        </button>
+                        <button class="btn btn-success" onclick="exportDetailedData()">
+                            <i class="fas fa-file-alt"></i> 导出详细数据
+                        </button>
+                        <button class="btn btn-info" onclick="exportCurrentView()">
+                            <i class="fas fa-table"></i> 导出当前视图
+                        </button>
+                    </div>
+                    <div class="export-info">
+                        <p><strong>导出说明：</strong></p>
+                        <ul>
+                            <li><strong>基础数据：</strong>包含用户基本信息和文件统计</li>
+                            <li><strong>详细数据：</strong>包含多个工作表，详细的文件信息</li>
+                            <li><strong>当前视图：</strong>导出当前筛选和搜索的结果</li>
+                        </ul>
+                    </div>
+                    <button class="btn btn-danger" onclick="clearData()">
+                        <i class="fas fa-trash"></i> 清空数据
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 详情弹窗 -->
+    <div id="detail-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>提交详情</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body" id="detail-modal-body">
+                <!-- 动态加载 -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-success" onclick="updateStatus('approved')">
+                    <i class="fas fa-check"></i> 通过
+                </button>
+                <button class="btn btn-danger" onclick="updateStatus('rejected')">
+                    <i class="fas fa-times"></i> 拒绝
+                </button>
+                <button class="btn btn-secondary" onclick="closeModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 加载提示 -->
+    <div id="loading" class="loading">
+        <div class="loading-spinner"></div>
+        <p>加载中...</p>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

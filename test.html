@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>回显功能测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .test-btn {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-btn:hover {
+            background: #3367d6;
+        }
+        .log {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+    </style>
+</head>
+<body>
+    <h1>H5随手拍 - 回显功能测试</h1>
+    
+    <div class="test-section">
+        <h3>🔍 DOM元素检查</h3>
+        <button class="test-btn" onclick="checkDOMElements()">检查DOM元素</button>
+        <div id="dom-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>📱 设备兼容性检查</h3>
+        <button class="test-btn" onclick="checkDeviceCompatibility()">检查设备兼容性</button>
+        <div id="device-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🖼️ 图片回显测试</h3>
+        <button class="test-btn" onclick="testImagePreview()">测试图片回显</button>
+        <button class="test-btn" onclick="clearImages()">清除图片</button>
+        <div id="image-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🎬 视频回显测试</h3>
+        <button class="test-btn" onclick="testVideoPreview()">测试视频回显</button>
+        <button class="test-btn" onclick="clearVideos()">清除视频</button>
+        <div id="video-status"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🔗 跳转到主应用</h3>
+        <button class="test-btn" onclick="goToMainApp()">打开主应用</button>
+        <p>在主应用中测试实际的文件上传和回显功能</p>
+    </div>
+
+    <div class="test-section">
+        <h3>📋 测试日志</h3>
+        <button class="test-btn" onclick="clearLog()">清除日志</button>
+        <div id="test-log" class="log"></div>
+    </div>
+
+    <script>
+        // 测试日志功能
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('test-log');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            logDiv.textContent += logEntry;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            
+            console.log(`[TEST] ${message}`);
+        }
+
+        function clearLog() {
+            document.getElementById('test-log').textContent = '';
+        }
+
+        function showStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // 检查DOM元素
+        function checkDOMElements() {
+            log('开始检查DOM元素...');
+            
+            const elements = [
+                'image-placeholder',
+                'video-placeholder',
+                'image-input-gallery',
+                'image-input-camera',
+                'video-input-gallery',
+                'video-input-camera'
+            ];
+            
+            let allFound = true;
+            let results = [];
+            
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    results.push(`✅ ${id}: 找到`);
+                    log(`DOM元素 ${id}: 找到`);
+                } else {
+                    results.push(`❌ ${id}: 未找到`);
+                    log(`DOM元素 ${id}: 未找到`, 'error');
+                    allFound = false;
+                }
+            });
+            
+            const status = allFound ? 'success' : 'error';
+            const message = allFound ? 
+                '所有DOM元素都已找到！' : 
+                '部分DOM元素未找到，请检查HTML结构。';
+            
+            showStatus('dom-status', `
+                <strong>${message}</strong><br>
+                ${results.join('<br>')}
+            `, status);
+        }
+
+        // 检查设备兼容性
+        function checkDeviceCompatibility() {
+            log('开始检查设备兼容性...');
+            
+            const checks = {
+                'File API': !!(window.File && window.FileReader && window.FileList && window.Blob),
+                'URL.createObjectURL': !!window.URL && !!window.URL.createObjectURL,
+                'MediaDevices': !!navigator.mediaDevices,
+                'getUserMedia': !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia),
+                '移动设备': /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+                '荣耀设备': /honor/i.test(navigator.userAgent),
+                '华为设备': /huawei/i.test(navigator.userAgent)
+            };
+            
+            let results = [];
+            let allSupported = true;
+            
+            Object.entries(checks).forEach(([name, supported]) => {
+                const icon = supported ? '✅' : '❌';
+                results.push(`${icon} ${name}: ${supported ? '支持' : '不支持'}`);
+                log(`${name}: ${supported ? '支持' : '不支持'}`);
+                if (!supported && ['File API', 'URL.createObjectURL'].includes(name)) {
+                    allSupported = false;
+                }
+            });
+            
+            const status = allSupported ? 'success' : 'warning';
+            const message = allSupported ? 
+                '设备兼容性良好！' : 
+                '部分功能可能不支持，但基本功能应该可用。';
+            
+            showStatus('device-status', `
+                <strong>${message}</strong><br>
+                <strong>用户代理:</strong> ${navigator.userAgent}<br><br>
+                ${results.join('<br>')}
+            `, status);
+        }
+
+        // 测试图片回显
+        function testImagePreview() {
+            log('开始测试图片回显...');
+            
+            try {
+                // 创建测试图片文件
+                const canvas = document.createElement('canvas');
+                canvas.width = 100;
+                canvas.height = 100;
+                const ctx = canvas.getContext('2d');
+                
+                // 绘制测试图片
+                ctx.fillStyle = '#4285f4';
+                ctx.fillRect(0, 0, 100, 100);
+                ctx.fillStyle = 'white';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('TEST', 50, 55);
+                
+                canvas.toBlob(blob => {
+                    const testFile = new File([blob], 'test-image.png', { type: 'image/png' });
+                    log(`创建测试图片文件: ${testFile.name}, 大小: ${testFile.size} bytes`);
+                    
+                    // 检查是否有handleFileSelection函数
+                    if (typeof handleFileSelection === 'function') {
+                        handleFileSelection([testFile], 'image');
+                        showStatus('image-status', '✅ 图片回显测试已执行，请检查主应用页面', 'success');
+                        log('图片回显测试完成');
+                    } else {
+                        showStatus('image-status', '❌ handleFileSelection函数未找到', 'error');
+                        log('handleFileSelection函数未找到', 'error');
+                    }
+                }, 'image/png');
+                
+            } catch (error) {
+                log(`图片回显测试失败: ${error.message}`, 'error');
+                showStatus('image-status', `❌ 测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 测试视频回显
+        function testVideoPreview() {
+            log('开始测试视频回显...');
+            
+            try {
+                // 创建测试视频文件（模拟）
+                const testVideoData = new Uint8Array([
+                    0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6F, 0x6D,
+                    0x00, 0x00, 0x02, 0x00, 0x69, 0x73, 0x6F, 0x6D, 0x69, 0x73, 0x6F, 0x32,
+                    0x6D, 0x70, 0x34, 0x31, 0x00, 0x00, 0x00, 0x08, 0x66, 0x72, 0x65, 0x65
+                ]);
+                
+                const testBlob = new Blob([testVideoData], { type: 'video/mp4' });
+                const testFile = new File([testBlob], 'test-video.mp4', { type: 'video/mp4' });
+                
+                log(`创建测试视频文件: ${testFile.name}, 大小: ${testFile.size} bytes`);
+                
+                // 检查是否有handleFileSelection函数
+                if (typeof handleFileSelection === 'function') {
+                    handleFileSelection([testFile], 'video');
+                    showStatus('video-status', '✅ 视频回显测试已执行，请检查主应用页面', 'success');
+                    log('视频回显测试完成');
+                } else {
+                    showStatus('video-status', '❌ handleFileSelection函数未找到', 'error');
+                    log('handleFileSelection函数未找到', 'error');
+                }
+                
+            } catch (error) {
+                log(`视频回显测试失败: ${error.message}`, 'error');
+                showStatus('video-status', `❌ 测试失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 清除图片
+        function clearImages() {
+            if (typeof selectedImages !== 'undefined' && typeof updateImagePreview === 'function') {
+                selectedImages.length = 0;
+                updateImagePreview();
+                updateImageCount();
+                log('已清除所有图片');
+                showStatus('image-status', '✅ 图片已清除', 'success');
+            } else {
+                log('无法清除图片：相关函数未找到', 'error');
+                showStatus('image-status', '❌ 无法清除：相关函数未找到', 'error');
+            }
+        }
+
+        // 清除视频
+        function clearVideos() {
+            if (typeof selectedVideos !== 'undefined' && typeof updateVideoPreview === 'function') {
+                selectedVideos.length = 0;
+                updateVideoPreview();
+                updateVideoCount();
+                log('已清除所有视频');
+                showStatus('video-status', '✅ 视频已清除', 'success');
+            } else {
+                log('无法清除视频：相关函数未找到', 'error');
+                showStatus('video-status', '❌ 无法清除：相关函数未找到', 'error');
+            }
+        }
+
+        // 跳转到主应用
+        function goToMainApp() {
+            window.location.href = 'index.html';
+        }
+
+        // 页面加载时自动检查
+        window.addEventListener('load', function() {
+            log('测试页面加载完成');
+            
+            // 延迟检查，确保主应用的脚本已加载
+            setTimeout(() => {
+                checkDOMElements();
+                checkDeviceCompatibility();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

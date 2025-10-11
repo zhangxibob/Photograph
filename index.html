@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>随手拍</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- 活动详情页 -->
+    <div class="page" id="activity-page">
+        <!-- 导航栏 -->
+        <div class="nav-bar">
+            <button class="back-btn" onclick="history.back()">‹</button>
+            <h1>活动详情</h1>
+            <button class="menu-btn">⋯</button>
+        </div>
+
+        <!-- 主横幅 -->
+        <div class="hero-banner">
+            <div class="banner-content">
+                <h2>市民随手拍</h2>
+                <h3>奖品赢起来</h3>
+                <button class="cta-btn">快来参与吧！👆</button>
+            </div>
+            <div class="banner-decorations">
+                <span class="star">✨</span>
+                <span class="diamond">💎</span>
+                <span class="trophy">🏆</span>
+            </div>
+        </div>
+
+        <!-- 活动信息 -->
+        <div class="activity-info">
+            <h3>市民随手拍·奖品赢起来</h3>
+
+            <div class="info-item">
+                <span class="label">主办方：</span>
+                <span class="value">校园活动</span>
+            </div>
+
+            <div class="info-item">
+                <span class="label">活动时间：</span>
+                <span class="value">02-13 10:00 至 12-31 23:59</span>
+            </div>
+
+            <div class="info-item">
+                <span class="label">报名时间：</span>
+                <span class="value">02-13 09:30 至 12-31 23:59</span>
+            </div>
+
+            <div class="info-item">
+                <span class="label">活动类型：</span>
+                <span class="value">免费活动</span>
+            </div>
+
+            <div class="info-item">
+                <span class="label">活动地址：</span>
+                <span class="value">大学城</span>
+            </div>
+        </div>
+
+        <!-- 活动详情 -->
+        <div class="activity-details">
+            <div class="section-title">活动详情</div>
+            <h4>"市民随手拍·文明共创建"</h4>
+            <div class="detail-item">
+                <strong>活动时间</strong>
+                <p>2025年2月13日至2025年12月31日</p>
+            </div>
+        </div>
+
+        <!-- 底部操作栏 -->
+        <div class="bottom-actions">
+            <button class="action-btn comment">📝 写评论...</button>
+            <button class="action-btn favorite">⭐</button>
+            <button class="action-btn share">📤</button>
+            <button class="register-btn" onclick="showRegisterPage()">立即报名</button>
+        </div>
+    </div>
+
+    <!-- 报名详情页 -->
+    <div class="page hidden" id="register-page">
+        <!-- 导航栏 -->
+        <div class="nav-bar">
+            <button class="back-btn" onclick="showActivityPage()">‹</button>
+            <h1>报名详情</h1>
+            <button class="submit-btn" onclick="submitForm()">提交</button>
+        </div>
+
+        <!-- 表单内容 -->
+        <div class="form-container">
+            <form id="registration-form">
+                <div class="form-group">
+                    <label class="required">手机号：</label>
+                    <input type="tel" id="phone" placeholder="请输入手机号" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="required">姓名：</label>
+                    <input type="text" id="name" placeholder="请输入姓名" required>
+                </div>
+
+                <div class="upload-section">
+                    <label class="required">图片</label>
+                    <div class="upload-area" onclick="showImageOptions()">
+                        <div class="upload-placeholder" id="image-placeholder">
+                            <span class="upload-icon">+</span>
+                            <span class="upload-text">添加</span>
+                        </div>
+                    </div>
+                    <div class="upload-count">0/4</div>
+                    <input type="file" id="image-input-gallery" accept="image/*" multiple style="display: none;">
+                    <input type="file" id="image-input-camera" accept="image/*" capture="camera" style="display: none;">
+                </div>
+
+                <div class="upload-section">
+                    <label>视频</label>
+                    <div class="upload-area" onclick="showVideoOptions()">
+                        <div class="upload-placeholder" id="video-placeholder">
+                            <span class="upload-icon">+</span>
+                            <span class="upload-text">添加</span>
+                        </div>
+                    </div>
+                    <div class="upload-count">0/2</div>
+                    <input type="file" id="video-input-gallery" accept="video/*" style="display: none;">
+                    <input type="file" id="video-input-camera" accept="video/*" capture="camcorder"
+                        style="display: none;">
+                </div>
+
+                <div class="form-group">
+                    <label class="required">文字说明：</label>
+                    <textarea id="description" placeholder="请输入文字说明" rows="8" required></textarea>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 图片选择弹窗 -->
+    <div class="modal-overlay" id="image-modal">
+        <div class="modal-content">
+            <div class="modal-options">
+                <button class="modal-option" onclick="selectFromGallery('image')">
+                    本地图片
+                </button>
+                <button class="modal-option" onclick="capturePhoto()">
+                    拍照
+                </button>
+            </div>
+            <button class="modal-cancel" onclick="hideModal('image-modal')">
+                取消
+            </button>
+        </div>
+    </div>
+
+    <!-- 视频选择弹窗 -->
+    <div class="modal-overlay" id="video-modal">
+        <div class="modal-content">
+            <div class="modal-options">
+                <button class="modal-option" onclick="selectFromGallery('video')">
+                    本地视频
+                </button>
+                <button class="modal-option" onclick="captureVideo()">
+                    拍视频
+                </button>
+            </div>
+            <button class="modal-cancel" onclick="hideModal('video-modal')">
+                取消
+            </button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
